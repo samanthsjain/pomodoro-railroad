@@ -1,0 +1,146 @@
+// Station and Route Types
+
+export interface Station {
+  id: string;
+  name: string;
+  city: string;
+  country: string;
+  countryCode: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  timezone: string;
+  funFacts: string[];
+}
+
+export interface Route {
+  id: string;
+  from: string; // Station ID
+  to: string; // Station ID
+  travelTimeMinutes: number;
+  distanceKm: number;
+  trainType: string;
+  routeName?: string; // e.g., "Shinkansen Nozomi", "Eurostar"
+}
+
+export interface Journey {
+  id: string;
+  stations: string[]; // Array of station IDs in order
+  currentStationIndex: number;
+  totalDistanceKm: number;
+  totalTimeMinutes: number;
+}
+
+export interface TimerState {
+  status: 'idle' | 'running' | 'paused' | 'break' | 'completed';
+  currentRoute: Route | null;
+  journey: Journey | null;
+  elapsedSeconds: number;
+  totalSeconds: number;
+  trainPosition: number; // 0-1 progress along current route
+}
+
+export interface UserProgress {
+  visitedStations: string[]; // Station IDs
+  completedRoutes: string[]; // Route IDs
+  totalDistanceKm: number;
+  totalTimeMinutes: number;
+  countriesVisited: string[]; // Country codes
+  sessionsCompleted: number;
+  createdAt: string;
+  lastSessionAt: string;
+}
+
+export interface AppState {
+  stations: Record<string, Station>;
+  routes: Route[];
+  timer: TimerState;
+  progress: UserProgress;
+  selectedDeparture: string | null;
+  selectedDestination: string | null;
+  hoveredStation: string | null;
+  showSearch: boolean;
+  searchQuery: string;
+}
+
+// Preset route templates
+export interface PresetRoute {
+  id: string;
+  name: string;
+  description: string;
+  category: 'short' | 'medium' | 'long' | 'epic';
+  stationIds: string[];
+}
+
+// For 3D globe calculations
+export interface GlobePoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+// Convert lat/lng to 3D point on sphere
+export function latLngToPoint(lat: number, lng: number, radius: number = 1): GlobePoint {
+  const phi = (90 - lat) * (Math.PI / 180);
+  const theta = (lng + 180) * (Math.PI / 180);
+
+  return {
+    x: -(radius * Math.sin(phi) * Math.cos(theta)),
+    y: radius * Math.cos(phi),
+    z: radius * Math.sin(phi) * Math.sin(theta),
+  };
+}
+
+// Calculate distance between two coordinates using Haversine formula
+export function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Interpolate between two points on the globe for animation
+export function interpolateGreatCircle(
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+  t: number // 0-1
+): { lat: number; lng: number } {
+  const lat1 = start.lat * (Math.PI / 180);
+  const lng1 = start.lng * (Math.PI / 180);
+  const lat2 = end.lat * (Math.PI / 180);
+  const lng2 = end.lng * (Math.PI / 180);
+
+  const d = 2 * Math.asin(
+    Math.sqrt(
+      Math.pow(Math.sin((lat2 - lat1) / 2), 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lng2 - lng1) / 2), 2)
+    )
+  );
+
+  if (d === 0) return start;
+
+  const A = Math.sin((1 - t) * d) / Math.sin(d);
+  const B = Math.sin(t * d) / Math.sin(d);
+
+  const x = A * Math.cos(lat1) * Math.cos(lng1) + B * Math.cos(lat2) * Math.cos(lng2);
+  const y = A * Math.cos(lat1) * Math.sin(lng1) + B * Math.cos(lat2) * Math.sin(lng2);
+  const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+
+  const lat = Math.atan2(z, Math.sqrt(x * x + y * y)) * (180 / Math.PI);
+  const lng = Math.atan2(y, x) * (180 / Math.PI);
+
+  return { lat, lng };
+}
