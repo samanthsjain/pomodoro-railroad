@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TimerState, UserProgress, Journey } from '../types';
-import { stations, routes, findRoute, calculateJourneyDistance, calculateJourneyTime } from '../data/stations';
+import type { TimerState, UserProgress, Journey, TrainClass, MapStyle } from '../types';
+import { trainClasses } from '../types';
+import { stations, routes, findRoute } from '../data/stations';
 
 interface AppStore {
   // Timer state
@@ -16,6 +17,8 @@ interface AppStore {
   showSearch: boolean;
   searchQuery: string;
   showPresets: boolean;
+  mapStyle: MapStyle;
+  showLabels: boolean;
 
   // User progress (persisted)
   progress: UserProgress;
@@ -30,9 +33,14 @@ interface AppStore {
   setShowSearch: (show: boolean) => void;
   setSearchQuery: (query: string) => void;
   setShowPresets: (show: boolean) => void;
+  setMapStyle: (style: MapStyle) => void;
+  setShowLabels: (show: boolean) => void;
 
   // Actions - Timer
   startJourney: () => void;
+  confirmTicket: () => void; // Stamp ticket and start the actual journey
+  cancelConfirmation: () => void; // Cancel during ticket stamping
+  setTrainClass: (trainClass: TrainClass) => void; // Set train class before starting
   pauseTimer: () => void;
   resumeTimer: () => void;
   stopTimer: () => void;
@@ -66,6 +74,8 @@ const initialTimer: TimerState = {
   elapsedSeconds: 0,
   totalSeconds: 0,
   trainPosition: 0,
+  ticketStamped: false,
+  selectedClass: 'economy',
 };
 
 export const useStore = create<AppStore>()(
@@ -79,6 +89,8 @@ export const useStore = create<AppStore>()(
       showSearch: false,
       searchQuery: '',
       showPresets: false,
+      mapStyle: 'monochrome' as MapStyle,
+      showLabels: true,
       progress: initialProgress,
 
       // Selection actions
@@ -112,10 +124,12 @@ export const useStore = create<AppStore>()(
       setShowSearch: (show) => set({ showSearch: show }),
       setSearchQuery: (query) => set({ searchQuery: query }),
       setShowPresets: (show) => set({ showPresets: show }),
+      setMapStyle: (style) => set({ mapStyle: style }),
+      setShowLabels: (show) => set({ showLabels: show }),
 
       // Timer actions
       startJourney: () => {
-        const { selectedDeparture, selectedDestination } = get();
+        const { selectedDeparture, selectedDestination, timer } = get();
         if (!selectedDeparture || !selectedDestination) return;
 
         const route = findRoute(selectedDeparture, selectedDestination);
@@ -126,27 +140,69 @@ export const useStore = create<AppStore>()(
         const actualFrom = isReversed ? route.to : route.from;
         const actualTo = isReversed ? route.from : route.to;
 
+        // Get time multiplier based on selected class
+        const classConfig = trainClasses.find(c => c.id === timer.selectedClass);
+        const timeMultiplier = classConfig?.timeMultiplier || 1.0;
+        const adjustedTime = Math.round(route.travelTimeMinutes * timeMultiplier);
+
         const journey: Journey = {
           id: `journey-${Date.now()}`,
           stations: [actualFrom, actualTo],
           currentStationIndex: 0,
           totalDistanceKm: route.distanceKm,
-          totalTimeMinutes: route.travelTimeMinutes,
+          totalTimeMinutes: adjustedTime,
         };
 
+        // Go to confirming state - user needs to stamp ticket
         set({
           timer: {
-            status: 'running',
+            ...timer,
+            status: 'confirming',
             currentRoute: {
               ...route,
               from: actualFrom,
               to: actualTo,
+              travelTimeMinutes: adjustedTime, // Use adjusted time
             },
             journey,
             elapsedSeconds: 0,
-            totalSeconds: route.travelTimeMinutes * 60,
+            totalSeconds: adjustedTime * 60,
             trainPosition: 0,
+            ticketStamped: false,
           },
+        });
+      },
+
+      setTrainClass: (trainClass) => {
+        const { timer } = get();
+        if (timer.status !== 'idle') return; // Can only change class when idle
+        set({
+          timer: {
+            ...timer,
+            selectedClass: trainClass,
+          },
+        });
+      },
+
+      confirmTicket: () => {
+        const { timer } = get();
+        if (timer.status !== 'confirming') return;
+
+        // Start the actual journey after ticket is stamped
+        set({
+          timer: {
+            ...timer,
+            status: 'running',
+            ticketStamped: true,
+          },
+        });
+      },
+
+      cancelConfirmation: () => {
+        set({
+          timer: initialTimer,
+          selectedDeparture: null,
+          selectedDestination: null,
         });
       },
 
@@ -303,7 +359,7 @@ export const useStore = create<AppStore>()(
     }),
     {
       name: 'pomodoro-railroad-storage',
-      partialize: (state) => ({ progress: state.progress }),
+      partialize: (state) => ({ progress: state.progress, mapStyle: state.mapStyle, showLabels: state.showLabels }),
     }
   )
 );

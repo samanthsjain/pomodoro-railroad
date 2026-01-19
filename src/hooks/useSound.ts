@@ -58,10 +58,96 @@ export function useSound() {
     playTone(600, 0.05, 'sine');
   }, [playTone]);
 
+  const playStamp = useCallback(() => {
+    // Satisfying stamp/thunk sound
+    try {
+      const ctx = getContext();
+
+      // Create noise for the thunk
+      const bufferSize = ctx.sampleRate * 0.1;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < bufferSize; i++) {
+        // Decaying noise with low frequency emphasis
+        const decay = Math.exp(-i / (bufferSize * 0.05));
+        data[i] = (Math.random() * 2 - 1) * decay;
+      }
+
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      // Low pass filter for thunk
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(200, ctx.currentTime);
+      filter.Q.setValueAtTime(1, ctx.currentTime);
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+
+      noise.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      noise.start(ctx.currentTime);
+      noise.stop(ctx.currentTime + 0.15);
+
+      // Add a subtle impact tone
+      playTone(80, 0.1, 'sine');
+    } catch {
+      // Audio might not be available
+    }
+  }, [getContext, playTone]);
+
+  const playTrainChug = useCallback(() => {
+    // Rhythmic train chugging sound
+    try {
+      const ctx = getContext();
+
+      const createChug = (time: number) => {
+        const bufferSize = ctx.sampleRate * 0.08;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+          const decay = Math.exp(-i / (bufferSize * 0.3));
+          data[i] = (Math.random() * 2 - 1) * decay * 0.3;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(150, time);
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0.15, time);
+
+        noise.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        noise.start(time);
+        noise.stop(time + 0.08);
+      };
+
+      // Create rhythmic pattern
+      createChug(ctx.currentTime);
+      createChug(ctx.currentTime + 0.15);
+    } catch {
+      // Audio might not be available
+    }
+  }, [getContext]);
+
   return {
     playDeparture,
     playArrival,
     playBreakEnd,
     playClick,
+    playStamp,
+    playTrainChug,
   };
 }

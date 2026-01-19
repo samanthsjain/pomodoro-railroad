@@ -1,5 +1,5 @@
 import { Toaster } from 'react-hot-toast';
-import Globe from './components/Globe';
+import MapView from './components/MapView';
 import { TimerDisplay } from './components/TimerDisplay';
 import { RoutePanel } from './components/RoutePanel';
 import { SearchPanel } from './components/SearchPanel';
@@ -7,12 +7,15 @@ import { PresetsPanel } from './components/PresetsPanel';
 import { StatsPanel } from './components/StatsPanel';
 import { StationTooltip } from './components/StationTooltip';
 import { Header } from './components/Header';
+import { TicketStamp } from './components/TicketStamp';
+import { TrainCabin } from './components/TrainCabin';
+import { MapStyleToggle } from './components/MapStyleToggle';
 
 function App() {
   return (
     <div className="w-full h-screen bg-black overflow-hidden">
-      {/* 3D Globe */}
-      <Globe />
+      {/* Google Maps */}
+      <MapView />
 
       {/* UI Overlays */}
       <Header />
@@ -22,6 +25,13 @@ function App() {
       <PresetsPanel />
       <StatsPanel />
       <StationTooltip />
+      <MapStyleToggle />
+
+      {/* Ticket stamping overlay */}
+      <TicketStamp />
+
+      {/* Train cabin experience during pomodoro */}
+      <TrainCabin />
 
       {/* Toast notifications */}
       <Toaster

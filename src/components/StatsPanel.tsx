@@ -25,7 +25,7 @@ export function StatsPanel() {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 bg-gray-900/90 backdrop-blur-xl rounded-xl border border-gray-700/50 text-gray-300 hover:text-white hover:bg-gray-800/90 transition-colors"
+        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-4 py-2.5 bg-gray-900/90 backdrop-blur-xl rounded-xl border border-gray-700/50 text-gray-300 hover:text-white hover:bg-gray-800/90 transition-colors"
       >
         <BarChart3 className="w-5 h-5" />
         <span>Stats</span>
@@ -49,7 +49,7 @@ export function StatsPanel() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed bottom-[5%] right-6 z-50 w-full max-w-md"
+              className="fixed bottom-[5%] left-6 z-50 w-full max-w-md"
             >
               <div className="bg-gray-900 rounded-2xl border border-gray-700/50 shadow-2xl overflow-hidden">
                 {/* Header */}

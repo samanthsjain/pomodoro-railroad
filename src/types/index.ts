@@ -1,3 +1,40 @@
+// Map Style Types
+export type MapStyle = 'standard' | 'satellite' | 'terrain' | 'monochrome';
+
+export interface MapStyleConfig {
+  id: MapStyle;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export const mapStyles: MapStyleConfig[] = [
+  {
+    id: 'standard',
+    name: 'Standard',
+    description: 'Default Google Maps view',
+    icon: '🗺️',
+  },
+  {
+    id: 'satellite',
+    name: 'Satellite',
+    description: 'Satellite imagery',
+    icon: '🛰️',
+  },
+  {
+    id: 'terrain',
+    name: 'Terrain',
+    description: 'Topographic elevation view',
+    icon: '🏔️',
+  },
+  {
+    id: 'monochrome',
+    name: 'Monochrome',
+    description: 'Dark grayscale theme',
+    icon: '🖤',
+  },
+];
+
 // Station and Route Types
 
 export interface Station {
@@ -32,13 +69,50 @@ export interface Journey {
   totalTimeMinutes: number;
 }
 
+// Train class options
+export type TrainClass = 'economy' | 'business' | 'first';
+
+export interface TrainClassConfig {
+  id: TrainClass;
+  name: string;
+  description: string;
+  timeMultiplier: number; // e.g., 1.0 for economy, 0.85 for business, 0.75 for first
+  cabinStyle: 'standard' | 'comfortable' | 'luxury';
+}
+
+export const trainClasses: TrainClassConfig[] = [
+  {
+    id: 'economy',
+    name: 'Economy',
+    description: 'Standard seating with window views',
+    timeMultiplier: 1.0,
+    cabinStyle: 'standard',
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    description: 'Extra legroom and quieter cabin',
+    timeMultiplier: 0.85,
+    cabinStyle: 'comfortable',
+  },
+  {
+    id: 'first',
+    name: 'First Class',
+    description: 'Premium experience with luxury amenities',
+    timeMultiplier: 0.75,
+    cabinStyle: 'luxury',
+  },
+];
+
 export interface TimerState {
-  status: 'idle' | 'running' | 'paused' | 'break' | 'completed';
+  status: 'idle' | 'confirming' | 'running' | 'paused' | 'break' | 'completed';
   currentRoute: Route | null;
   journey: Journey | null;
   elapsedSeconds: number;
   totalSeconds: number;
   trainPosition: number; // 0-1 progress along current route
+  ticketStamped: boolean; // Whether the ticket has been stamped
+  selectedClass: TrainClass; // Selected train class
 }
 
 export interface UserProgress {

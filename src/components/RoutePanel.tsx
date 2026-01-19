@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, Ruler, Train, X, Play } from 'lucide-react';
+import { Clock, Ruler, Train, X, Play, Armchair } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { stations, findRoute } from '../data/stations';
+import { trainClasses } from '../types';
 
 export function RoutePanel() {
   const {
@@ -9,6 +10,7 @@ export function RoutePanel() {
     selectedDestination,
     clearSelection,
     startJourney,
+    setTrainClass,
     timer,
   } = useStore();
 
@@ -18,7 +20,7 @@ export function RoutePanel() {
     ? findRoute(selectedDeparture, selectedDestination)
     : null;
 
-  // Don't show when timer is running
+  // Don't show when timer is active (confirming, running, paused, break)
   if (timer.status !== 'idle') return null;
 
   // Show prompt when nothing is selected
@@ -132,16 +134,55 @@ export function RoutePanel() {
             </div>
           )}
 
+          {/* Train class selector */}
+          {route && (
+            <div className="p-4 border-b border-gray-700/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Armchair className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-medium text-gray-300">Select Class</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {trainClasses.map((cls) => {
+                  const isSelected = timer.selectedClass === cls.id;
+                  const adjustedTime = Math.round(route.travelTimeMinutes * cls.timeMultiplier);
+                  return (
+                    <button
+                      key={cls.id}
+                      onClick={() => setTrainClass(cls.id)}
+                      className={`p-2 rounded-lg border transition-all text-center ${
+                        isSelected
+                          ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+                          : 'border-gray-600 bg-gray-800/50 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      <p className="text-xs font-medium">{cls.name}</p>
+                      <p className="text-[10px] opacity-70">{adjustedTime} min</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2 text-center">
+                {trainClasses.find(c => c.id === timer.selectedClass)?.description}
+              </p>
+            </div>
+          )}
+
           {/* Start button */}
           {route && (
             <div className="p-4">
-              <button
-                onClick={startJourney}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Play className="w-5 h-5" />
-                Start Journey ({route.travelTimeMinutes} min)
-              </button>
+              {(() => {
+                const classConfig = trainClasses.find(c => c.id === timer.selectedClass);
+                const adjustedTime = Math.round(route.travelTimeMinutes * (classConfig?.timeMultiplier || 1));
+                return (
+                  <button
+                    onClick={startJourney}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Play className="w-5 h-5" />
+                    Start Journey ({adjustedTime} min)
+                  </button>
+                );
+              })()}
             </div>
           )}
         </div>
