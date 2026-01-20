@@ -134,20 +134,31 @@ export function TicketStamp() {
               {/* Divider */}
               <div className="border-t-2 border-dashed border-amber-300 my-4" />
 
-              {/* Train type and class */}
-              <div className="flex justify-between items-center mb-4">
+              {/* Train type, class, and seat */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
                 <div>
                   <p className="text-xs text-amber-600 uppercase tracking-wider">Train</p>
-                  <p className="text-amber-900 font-bold">{timer.currentRoute?.trainType}</p>
+                  <p className="text-amber-900 font-bold text-sm">{timer.currentRoute?.trainType}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-center">
                   <p className="text-xs text-amber-600 uppercase tracking-wider">Class</p>
-                  <div className="flex items-center gap-1 justify-end">
-                    <Armchair className="w-4 h-4 text-amber-700" />
-                    <p className="text-amber-900 font-bold">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Armchair className="w-3 h-3 text-amber-700" />
+                    <p className="text-amber-900 font-bold text-sm">
                       {trainClasses.find(c => c.id === timer.selectedClass)?.name || 'Economy'}
                     </p>
                   </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-amber-600 uppercase tracking-wider">Seat</p>
+                  <p className="text-amber-900 font-bold text-sm">
+                    {timer.selectedSeat
+                      ? `${timer.selectedSeat.car}-${timer.selectedSeat.row}${timer.selectedSeat.seat}`
+                      : '—'}
+                  </p>
+                  {timer.selectedSeat?.isWindow && (
+                    <p className="text-[10px] text-amber-500">Window</p>
+                  )}
                 </div>
               </div>
 

@@ -49,6 +49,26 @@ export interface Station {
   };
   timezone: string;
   funFacts: string[];
+  isApiStation?: boolean; // True if loaded from Railway Stations API
+}
+
+// API loading state
+export type ApiLoadingState = 'idle' | 'loading' | 'success' | 'error';
+
+// Route segment for multi-stop journeys
+export interface RouteSegment {
+  from: string;
+  to: string;
+  distanceKm: number;
+  timeMinutes: number;
+}
+
+// Full route path with intermediate stations
+export interface RoutePath {
+  stations: string[];           // All station IDs in order
+  segments: RouteSegment[];     // Details for each segment
+  totalDistanceKm: number;
+  totalTimeMinutes: number;
 }
 
 export interface Route {
@@ -59,14 +79,45 @@ export interface Route {
   distanceKm: number;
   trainType: string;
   routeName?: string; // e.g., "Shinkansen Nozomi", "Eurostar"
+  path?: RoutePath; // Multi-stop path with intermediate stations
+  // Enhanced route info
+  stops?: number; // Number of intermediate stops
+  service?: {
+    id: string;
+    name: string;
+    shortName: string;
+    color: string;
+    type: 'high-speed' | 'intercity' | 'regional' | 'local';
+  };
+}
+
+// Journey segment with pre-computed timing
+export interface JourneySegment {
+  fromStation: string;
+  toStation: string;
+  distanceKm: number;
+  timeSeconds: number;
+  startProgress: number;  // Overall progress where segment starts (0-1)
+  endProgress: number;    // Overall progress where segment ends (0-1)
+}
+
+// Pause state for station arrivals
+export interface PauseState {
+  stationId: string;
+  stationName: string;
+  remainingPauseSeconds: number;
+  totalPauseSeconds: number;
 }
 
 export interface Journey {
   id: string;
-  stations: string[]; // Array of station IDs in order
-  currentStationIndex: number;
+  stations: string[];              // Full path of station IDs
+  currentSegmentIndex: number;     // Which segment we're on (0 to n-1)
+  segmentProgress: number;         // 0-1 within current segment
+  segments: JourneySegment[];      // Pre-computed segment data
   totalDistanceKm: number;
   totalTimeMinutes: number;
+  pauseState: PauseState | null;   // Station arrival pause
 }
 
 // Train class options
@@ -104,8 +155,16 @@ export const trainClasses: TrainClassConfig[] = [
   },
 ];
 
+// Seat selection type
+export interface SelectedSeat {
+  car: number;    // Car/coach number (1-4)
+  row: number;    // Row number (1-8)
+  seat: string;   // Seat letter (A, B, C, D)
+  isWindow: boolean;
+}
+
 export interface TimerState {
-  status: 'idle' | 'confirming' | 'running' | 'paused' | 'break' | 'completed';
+  status: 'idle' | 'selecting-seat' | 'confirming' | 'running' | 'paused' | 'break' | 'completed';
   currentRoute: Route | null;
   journey: Journey | null;
   elapsedSeconds: number;
@@ -113,6 +172,7 @@ export interface TimerState {
   trainPosition: number; // 0-1 progress along current route
   ticketStamped: boolean; // Whether the ticket has been stamped
   selectedClass: TrainClass; // Selected train class
+  selectedSeat: SelectedSeat | null; // Selected seat in the train
 }
 
 export interface UserProgress {
