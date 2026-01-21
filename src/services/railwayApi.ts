@@ -397,12 +397,11 @@ function getTrainType(distanceKm: number, countryCode: string): string {
 }
 
 // ============================================================================
-// Route Pathfinding - Iterative Greedy Hop Algorithm
+// Route Pathfinding - Accurate Station-by-Station Algorithm
 // ============================================================================
 
-// Search radius thresholds (start small, expand if stuck)
-const SEARCH_RADII_KM = [8, 15, 25, 40, 60, 90, 130];
-const MIN_HOP_DISTANCE_KM = 3; // Minimum hop to avoid same-location stations
+// Search radii - start tiny to get ALL stations for accurate path (no water crossings)
+const SEARCH_RADII_KM = [2, 4, 6, 10, 15, 20, 30, 45, 60, 80, 100];
 
 // Cache for computed paths to prevent flickering
 const pathCache = new LRUCache<string[]>(200);
@@ -430,7 +429,7 @@ function bearingDifference(bearing1: number, bearing2: number): number {
   return diff;
 }
 
-// Greedy hop pathfinding
+// Accurate pathfinding - gets ALL stations along the route for proper path drawing
 function greedyHopPath(
   fromStation: Station,
   toStation: Station,
@@ -440,7 +439,8 @@ function greedyHopPath(
   const visited = new Set<string>([fromStation.id]);
   let current = fromStation;
 
-  const maxIterations = 50;
+  // Allow lots of iterations - we want every station
+  const maxIterations = 1000;
   let iterations = 0;
 
   while (current.id !== toStation.id && iterations < maxIterations) {
@@ -451,8 +451,8 @@ function greedyHopPath(
       toStation.coordinates.lat, toStation.coordinates.lng
     );
 
-    // If close enough to destination, go directly
-    if (distanceToGoal < 10) {
+    // If very close to destination, go directly
+    if (distanceToGoal < 2) {
       path.push(toStation);
       break;
     }
@@ -463,11 +463,11 @@ function greedyHopPath(
     );
 
     let bestCandidate: Station | null = null;
-    let bestScore = Infinity;
+    let bestDist = Infinity;
 
     // Try progressively larger search radii
     for (const radius of SEARCH_RADII_KM) {
-      const candidates: { station: Station; dist: number; distToGoal: number; bearing: number }[] = [];
+      const candidates: { station: Station; dist: number }[] = [];
 
       for (const station of allStations) {
         if (visited.has(station.id)) continue;
@@ -478,37 +478,34 @@ function greedyHopPath(
           station.coordinates.lat, station.coordinates.lng
         );
 
-        // Skip if outside radius or too close (avoid micro-hops)
-        if (distFromCurrent > radius || distFromCurrent < MIN_HOP_DISTANCE_KM) continue;
+        // Skip if outside radius - NO minimum distance, get all stations
+        if (distFromCurrent > radius) continue;
 
         const distToGoal = calculateDistance(
           station.coordinates.lat, station.coordinates.lng,
           toStation.coordinates.lat, toStation.coordinates.lng
         );
 
-        // Must make forward progress
-        if (distToGoal >= distanceToGoal * 0.9) continue;
+        // Must make forward progress (at least a tiny bit closer)
+        if (distToGoal >= distanceToGoal) continue;
 
         const bearing = calculateBearing(
           current.coordinates.lat, current.coordinates.lng,
           station.coordinates.lat, station.coordinates.lng
         );
 
-        // Must be roughly in the right direction (within 70 degrees)
+        // Must be roughly in the right direction (within 55 degrees)
         const bearingDiff = bearingDifference(bearing, bearingToGoal);
-        if (bearingDiff > 70) continue;
+        if (bearingDiff > 55) continue;
 
-        candidates.push({ station, dist: distFromCurrent, distToGoal, bearing });
+        candidates.push({ station, dist: distFromCurrent });
       }
 
       if (candidates.length > 0) {
-        // Pick best: prioritize getting closer to goal
+        // Pick the CLOSEST station to get maximum density
         for (const candidate of candidates) {
-          const bearingDiff = bearingDifference(candidate.bearing, bearingToGoal);
-          const score = candidate.distToGoal + (bearingDiff / 180) * 10;
-
-          if (score < bestScore) {
-            bestScore = score;
+          if (candidate.dist < bestDist) {
+            bestDist = candidate.dist;
             bestCandidate = candidate.station;
           }
         }
@@ -532,6 +529,43 @@ function greedyHopPath(
   }
 
   return path;
+}
+
+// Filter path to get only significant stops for display (not all the tiny ones)
+// Returns indices of stations that should be shown as "stops"
+function getSignificantStops(path: Station[], minDistanceKm: number = 15): number[] {
+  if (path.length <= 2) return [0, path.length - 1];
+
+  const significantIndices: number[] = [0]; // Always include start
+  let lastSignificantIdx = 0;
+
+  for (let i = 1; i < path.length - 1; i++) {
+    const distFromLast = calculateDistance(
+      path[lastSignificantIdx].coordinates.lat,
+      path[lastSignificantIdx].coordinates.lng,
+      path[i].coordinates.lat,
+      path[i].coordinates.lng
+    );
+
+    if (distFromLast >= minDistanceKm) {
+      significantIndices.push(i);
+      lastSignificantIdx = i;
+    }
+  }
+
+  significantIndices.push(path.length - 1); // Always include end
+  return significantIndices;
+}
+
+// Export version that works with station IDs and a station map
+export function getSignificantStopIds(
+  stationIds: string[],
+  stationMap: Record<string, Station>,
+  minDistanceKm: number = 15
+): Set<string> {
+  const stations = stationIds.map(id => stationMap[id]).filter(Boolean);
+  const indices = getSignificantStops(stations, minDistanceKm);
+  return new Set(indices.map(i => stationIds[i]));
 }
 
 // Main pathfinding function
@@ -754,15 +788,24 @@ export function createCuratedRoutes(
   curatedStations: { station: Station; travelTime: number; distanceKm: number }[],
   allStations: Station[]
 ): Route[] {
+  // Create station lookup map for significant stops calculation
+  const stationMap = new Map(allStations.map(s => [s.id, s]));
+
   return curatedStations.map(({ station: toStation }) => {
-    // Find multi-stop path through intermediate stations
+    // Find full path through ALL intermediate stations (for accurate line drawing)
     const path = findRoutePath(fromStation, toStation, allStations);
+
+    // Get the actual station objects for significant stops calculation
+    const pathStations = path.stations
+      .map(id => stationMap.get(id))
+      .filter((s): s is Station => s !== undefined);
+
+    // Get significant stops (15km+ apart) - these are the ones we show in UI
+    const significantIndices = getSignificantStops(pathStations, 15);
+    const significantStops = significantIndices.length > 2 ? significantIndices.length - 2 : 0;
 
     // Get appropriate train service type based on distance
     const service = getServiceForDistance(path.totalDistanceKm);
-
-    // Calculate number of intermediate stops
-    const stops = path.stations.length > 2 ? path.stations.length - 2 : 0;
 
     return {
       id: `route-${fromStation.id}-${toStation.id}`,
@@ -772,8 +815,8 @@ export function createCuratedRoutes(
       distanceKm: path.totalDistanceKm,
       trainType: service.name,
       routeName: `${fromStation.city} - ${toStation.city}`,
-      path,
-      stops,
+      path, // Full path with ALL stations for accurate line drawing
+      stops: significantStops, // Only significant stops shown in UI
       service: {
         id: service.id,
         name: service.name,

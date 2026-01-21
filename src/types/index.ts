@@ -111,7 +111,8 @@ export interface PauseState {
 
 export interface Journey {
   id: string;
-  stations: string[];              // Full path of station IDs
+  stations: string[];              // Full path of station IDs (ALL stations for smooth movement)
+  significantStopIds: Set<string>; // Only major stops where train pauses (15km+ apart)
   currentSegmentIndex: number;     // Which segment we're on (0 to n-1)
   segmentProgress: number;         // 0-1 within current segment
   segments: JourneySegment[];      // Pre-computed segment data

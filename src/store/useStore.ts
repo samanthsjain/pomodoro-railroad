@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import type { TimerState, UserProgress, Journey, JourneySegment, PauseState, TrainClass, MapStyle, Station, Route, ApiLoadingState, SelectedSeat } from '../types';
 import { trainClasses, calculateDistance } from '../types';
 import { findRoute as findLocalRoute } from '../data/stations';
-import { fetchCountryStations, getRandomStation, selectCuratedStations, createCuratedRoutes, clearCaches } from '../services/railwayApi';
+import { fetchCountryStations, getRandomStation, selectCuratedStations, createCuratedRoutes, clearCaches, getSignificantStopIds } from '../services/railwayApi';
 
 interface AppStore {
   // Timer state
@@ -293,6 +293,9 @@ export const useStore = create<AppStore>()(
           stationIds = [actualFrom, actualTo];
         }
 
+        // Compute significant stops (15km+ apart) - only these will trigger pauses
+        const significantStopIds = getSignificantStopIds(stationIds, apiStations, 15);
+
         // Pre-compute journey segments with timing boundaries
         const segments: JourneySegment[] = [];
         let totalTimeSeconds = 0;
@@ -338,6 +341,7 @@ export const useStore = create<AppStore>()(
         const journey: Journey = {
           id: `journey-${Date.now()}`,
           stations: stationIds,
+          significantStopIds, // Only pause at these major stops
           currentSegmentIndex: 0,
           segmentProgress: 0,
           segments,
@@ -584,30 +588,50 @@ export const useStore = create<AppStore>()(
               }
             }
           } else {
-            // Intermediate station - start pause
+            // Intermediate station reached
             const nextStationId = currentSegment.toStation;
-            const nextStation = apiStations[nextStationId];
-            const stationName = nextStation?.name || nextStation?.city || 'Station';
+            const isSignificantStop = journey.significantStopIds.has(nextStationId);
 
-            const pauseState: PauseState = {
-              stationId: nextStationId,
-              stationName,
-              remainingPauseSeconds: 5,
-              totalPauseSeconds: 5,
-            };
+            if (isSignificantStop) {
+              // Major stop - pause and announce
+              const nextStation = apiStations[nextStationId];
+              const stationName = nextStation?.name || nextStation?.city || 'Station';
 
-            set({
-              timer: {
-                ...timer,
-                elapsedSeconds: newElapsed,
-                trainPosition: overallProgress,
-                journey: {
-                  ...journey,
-                  segmentProgress: 1,
-                  pauseState,
+              const pauseState: PauseState = {
+                stationId: nextStationId,
+                stationName,
+                remainingPauseSeconds: 5,
+                totalPauseSeconds: 5,
+              };
+
+              set({
+                timer: {
+                  ...timer,
+                  elapsedSeconds: newElapsed,
+                  trainPosition: overallProgress,
+                  journey: {
+                    ...journey,
+                    segmentProgress: 1,
+                    pauseState,
+                  },
                 },
-              },
-            });
+              });
+            } else {
+              // Minor stop - just move to next segment without pausing
+              set({
+                timer: {
+                  ...timer,
+                  elapsedSeconds: newElapsed,
+                  trainPosition: overallProgress,
+                  journey: {
+                    ...journey,
+                    currentSegmentIndex: journey.currentSegmentIndex + 1,
+                    segmentProgress: 0,
+                    pauseState: null,
+                  },
+                },
+              });
+            }
           }
         } else {
           // Normal progress within segment
