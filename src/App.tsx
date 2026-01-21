@@ -3,8 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import MapView from './components/MapView';
 import { TimerDisplay } from './components/TimerDisplay';
 import { RoutePanel } from './components/RoutePanel';
-import { SearchPanel } from './components/SearchPanel';
-import { PresetsPanel } from './components/PresetsPanel';
+import { StationSearch } from './components/StationSearch';
 import { StatsPanel } from './components/StatsPanel';
 import { StationTooltip } from './components/StationTooltip';
 import { Header } from './components/Header';
@@ -38,8 +37,7 @@ function App() {
       <Header />
       <RoutePanel />
       <TimerDisplay />
-      <SearchPanel />
-      <PresetsPanel />
+      <StationSearch />
       <StatsPanel />
       <StationTooltip />
       <MapStyleToggle />

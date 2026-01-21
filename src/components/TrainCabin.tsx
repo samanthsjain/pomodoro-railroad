@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Pause, Play, Coffee, Volume2, VolumeX, Map, LogOut } from 'lucide-react';
 import { useStore, useMergedStations } from '../store/useStore';
-import { useSound } from '../hooks/useSound';
+import { useTrainAudio } from '../hooks/useTrainAudio';
 import { getBiomeConfig, type BiomeConfig } from '../data/biomes';
 
 function formatTime(seconds: number): string {
@@ -113,8 +113,9 @@ function TreeElement({ tree }: { tree: { type: string; height: number; color: st
 export function TrainCabin() {
   const { timer, pauseTimer, resumeTimer, endTrip, tick, endBreak, togglePomodoroViewMode } = useStore();
   const stations = useMergedStations();
-  const { playTrainChug } = useSound();
+  const { playHorn, startTrainLoop, stopTrainLoop } = useTrainAudio();
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const hasPlayedDepartureHorn = useRef(false);
 
   const fromStation = timer.currentRoute ? stations[timer.currentRoute.from] : null;
   const toStation = timer.currentRoute ? stations[timer.currentRoute.to] : null;
@@ -170,11 +171,26 @@ export function TrainCabin() {
     return () => clearInterval(interval);
   }, [timer.status, tick]);
 
+  // Play departure horn when journey starts
   useEffect(() => {
-    if (timer.status !== 'running' || !soundEnabled) return;
-    const interval = setInterval(() => playTrainChug(), 4000);
-    return () => clearInterval(interval);
-  }, [timer.status, soundEnabled, playTrainChug]);
+    if (timer.status === 'running' && !hasPlayedDepartureHorn.current && soundEnabled) {
+      hasPlayedDepartureHorn.current = true;
+      playHorn();
+    }
+    if (timer.status === 'idle') {
+      hasPlayedDepartureHorn.current = false;
+    }
+  }, [timer.status, soundEnabled, playHorn]);
+
+  // Manage train wheel sounds based on sound toggle
+  useEffect(() => {
+    if (soundEnabled && timer.status === 'running' && !timer.journey?.pauseState) {
+      startTrainLoop();
+    } else {
+      stopTrainLoop();
+    }
+    return () => stopTrainLoop();
+  }, [timer.status, timer.journey?.pauseState, soundEnabled, startTrainLoop, stopTrainLoop]);
 
   if (timer.status !== 'running' && timer.status !== 'paused' && timer.status !== 'break') {
     return null;

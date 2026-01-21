@@ -157,10 +157,17 @@ export const useStore = create<AppStore>()(
 
       setHoveredStation: (stationId) => set({ hoveredStation: stationId }),
 
-      clearSelection: () => set({
-        selectedDeparture: null,
-        selectedDestination: null,
-      }),
+      clearSelection: () => {
+        const { currentStation } = get();
+        set({
+          selectedDeparture: currentStation, // Keep current station as departure
+          selectedDestination: null,
+        });
+        // Reload connected stations to ensure routes are fresh
+        if (currentStation) {
+          get().loadConnectedStations();
+        }
+      },
 
       // UI actions
       setShowSearch: (show) => set({ showSearch: show }),
@@ -417,11 +424,16 @@ export const useStore = create<AppStore>()(
       },
 
       cancelConfirmation: () => {
+        const { currentStation } = get();
         set({
           timer: initialTimer,
-          selectedDeparture: null,
+          selectedDeparture: currentStation, // Keep current station as departure
           selectedDestination: null,
         });
+        // Reload connected stations if we have a current station
+        if (currentStation) {
+          get().loadConnectedStations();
+        }
       },
 
       pauseTimer: () => {

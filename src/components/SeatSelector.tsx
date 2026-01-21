@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Train, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import type { SelectedSeat } from '../types';
 
 const ROWS_PER_CAR = 8;
 const SEATS_PER_ROW = ['A', 'B', 'C', 'D'] as const;
