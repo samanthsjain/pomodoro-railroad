@@ -498,7 +498,7 @@ export function MapView() {
         );
       })}
 
-      {/* Apple-style glass hover card */}
+      {/* Apple-style glass hover card with photo */}
       {timer.status === 'idle' && hoveredStationId && stations[hoveredStationId] && (
         <OverlayView
           position={{
@@ -512,57 +512,78 @@ export function MapView() {
             style={{ pointerEvents: 'none' }}
           >
             <div
-              className="px-4 py-3 rounded-2xl shadow-2xl min-w-[180px]"
+              className="rounded-2xl shadow-2xl overflow-hidden"
               style={{
                 background: 'rgba(30, 30, 30, 0.85)',
                 backdropFilter: 'blur(20px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
+                width: stations[hoveredStationId].photoUrl ? '220px' : '180px',
               }}
             >
-              <p className="font-semibold text-white text-sm">
-                {stations[hoveredStationId].name}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {stations[hoveredStationId].city}
-              </p>
+              {/* Station photo */}
+              {stations[hoveredStationId].photoUrl && (
+                <div className="relative w-full h-28 overflow-hidden">
+                  <img
+                    src={stations[hoveredStationId].photoUrl}
+                    alt={stations[hoveredStationId].name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  {stations[hoveredStationId].photographer && (
+                    <p className="absolute bottom-1 right-2 text-[10px] text-white/60">
+                      {stations[hoveredStationId].photographer}
+                    </p>
+                  )}
+                </div>
+              )}
 
-              {currentStation === hoveredStationId ? (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="text-xs text-green-400">Your Location</span>
-                </div>
-              ) : selectedDestination === hoveredStationId ? (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-orange-500" />
-                  <span className="text-xs text-orange-400">Selected Destination</span>
-                </div>
-              ) : (() => {
-                const info = getHoveredStationInfo(hoveredStationId);
-                if (!info) return null;
-                return (
-                  <div className="mt-2 pt-2 border-t border-white/10">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-400">Travel time</span>
-                      <span className="text-blue-400 font-medium">
-                        {info.travelTime < 60
-                          ? `${info.travelTime}m`
-                          : `${Math.floor(info.travelTime / 60)}h ${info.travelTime % 60}m`}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs mt-1">
-                      <span className="text-gray-400">Distance</span>
-                      <span className="text-gray-300">{info.distance} km</span>
-                    </div>
-                    {info.stops > 0 && (
-                      <div className="flex items-center justify-between text-xs mt-1">
-                        <span className="text-gray-400">Stops</span>
-                        <span className="text-gray-300">{info.stops} station{info.stops > 1 ? 's' : ''}</span>
-                      </div>
-                    )}
+              <div className="px-4 py-3">
+                <p className="font-semibold text-white text-sm">
+                  {stations[hoveredStationId].name}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {stations[hoveredStationId].city}
+                </p>
+
+                {currentStation === hoveredStationId ? (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-xs text-green-400">Your Location</span>
                   </div>
-                );
-              })()}
+                ) : selectedDestination === hoveredStationId ? (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="text-xs text-orange-400">Selected Destination</span>
+                  </div>
+                ) : (() => {
+                  const info = getHoveredStationInfo(hoveredStationId);
+                  if (!info) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-white/10">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Travel time</span>
+                        <span className="text-blue-400 font-medium">
+                          {info.travelTime < 60
+                            ? `${info.travelTime}m`
+                            : `${Math.floor(info.travelTime / 60)}h ${info.travelTime % 60}m`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs mt-1">
+                        <span className="text-gray-400">Distance</span>
+                        <span className="text-gray-300">{info.distance} km</span>
+                      </div>
+                      {info.stops > 0 && (
+                        <div className="flex items-center justify-between text-xs mt-1">
+                          <span className="text-gray-400">Stops</span>
+                          <span className="text-gray-300">{info.stops} station{info.stops > 1 ? 's' : ''}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
             {/* Arrow pointer */}
             <div

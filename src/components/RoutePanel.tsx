@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Train, Play, Shuffle, ChevronRight } from 'lucide-react';
+import { Clock, Train, Play, Shuffle, ChevronRight, Zap, History } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { trainClasses } from '../types';
+import { FloatingOrbs } from './AmbientParticles';
 
 export function RoutePanel() {
   const {
@@ -20,7 +21,14 @@ export function RoutePanel() {
     pickRandomStation,
     setShowCountrySelector,
     apiLoadingState,
+    progress,
+    setCurrentStation,
   } = useStore();
+
+  // Get recent journeys for quick-start
+  const recentJourneys = (progress.recentJourneys || [])
+    .filter(j => j.countryCode === selectedCountry)
+    .slice(0, 3);
 
   const allStations = getAllStations();
   const toStation = selectedDestination ? allStations[selectedDestination] : null;
@@ -35,27 +43,60 @@ export function RoutePanel() {
   if (!selectedCountry) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-        className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
+        className="fixed inset-0 z-40 flex items-center justify-center"
+        style={{ background: 'var(--color-bg-primary)' }}
       >
-        <div className="text-center pointer-events-auto">
+        {/* Ambient floating orbs */}
+        <FloatingOrbs />
+
+        <div className="text-center relative z-10">
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
             className="mb-6"
           >
-            <div className="w-20 h-20 mx-auto rounded-3xl bg-[var(--color-accent-blue)] flex items-center justify-center mb-6">
-              <Train className="w-10 h-10 text-white" />
-            </div>
+            {/* Animated logo with glow */}
+            <motion.div
+              className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-[var(--color-accent-blue)] to-[#0055cc] flex items-center justify-center mb-6 relative"
+              animate={{
+                boxShadow: [
+                  '0 0 30px rgba(0, 122, 255, 0.3)',
+                  '0 0 50px rgba(0, 122, 255, 0.5)',
+                  '0 0 30px rgba(0, 122, 255, 0.3)',
+                ]
+              }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Train className="w-12 h-12 text-white" />
+              <motion.div
+                className="absolute inset-0 rounded-3xl"
+                style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%)' }}
+              />
+            </motion.div>
+
             <h1 className="text-display-md text-[var(--color-text-primary)] mb-2">
               Pomodoro Railroad
             </h1>
-            <p className="text-body text-[var(--color-text-secondary)] max-w-sm mx-auto">
+            <p className="text-body text-[var(--color-text-secondary)] max-w-sm mx-auto mb-4">
               Focus your way around the world's railway networks
             </p>
+
+            {/* Streak indicator on welcome */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="flex items-center justify-center gap-2 text-sm"
+            >
+              <Zap className="w-4 h-4 text-[var(--color-accent-orange)]" />
+              <span className="text-[var(--color-text-tertiary)]">
+                Start focusing to build your streak
+              </span>
+            </motion.div>
           </motion.div>
 
           <motion.button
@@ -64,10 +105,26 @@ export function RoutePanel() {
             transition={{ delay: 0.2 }}
             onClick={() => setShowCountrySelector(true)}
             whileTap={{ scale: 0.97 }}
-            className="btn-apple btn-primary px-8 py-4 text-lg"
+            className="btn-apple btn-primary px-8 py-4 text-lg relative overflow-hidden group"
           >
-            Choose a Country
+            <span className="relative z-10">Choose a Country</span>
+            <motion.div
+              className="absolute inset-0 bg-white/10"
+              initial={{ x: '-100%' }}
+              whileHover={{ x: '100%' }}
+              transition={{ duration: 0.5 }}
+            />
           </motion.button>
+
+          {/* Keyboard hint */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-4 text-caption text-[var(--color-text-tertiary)]"
+          >
+            Press <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-fill-tertiary)] text-[var(--color-text-secondary)] font-mono text-xs">Space</kbd> to pause during journeys
+          </motion.p>
         </div>
       </motion.div>
     );
@@ -120,6 +177,43 @@ export function RoutePanel() {
               </div>
             )}
 
+            {/* Quick start - Recent journeys */}
+            {recentJourneys.length > 0 && apiLoadingState !== 'loading' && (
+              <div className="p-3 pb-0">
+                <p className="text-caption text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 px-2 flex items-center gap-2">
+                  <History className="w-3 h-3" />
+                  Quick Start
+                </p>
+                <div className="space-y-1">
+                  {recentJourneys.map((journey, idx) => {
+                    const fromStation = allStations[journey.fromStation];
+                    const toStation = allStations[journey.toStation];
+                    if (!fromStation || !toStation) return null;
+
+                    return (
+                      <motion.button
+                        key={idx}
+                        onClick={() => {
+                          setCurrentStation(journey.fromStation);
+                          setTimeout(() => setSelectedDestination(journey.toStation), 100);
+                        }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full p-2 rounded-xl text-left transition-all bg-[var(--color-accent-blue)]/10 hover:bg-[var(--color-accent-blue)]/20 border border-[var(--color-accent-blue)]/20 group flex items-center gap-2"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-footnote text-[var(--color-accent-blue)] truncate">
+                            {fromStation.city} → {toStation.city}
+                          </p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-[var(--color-accent-blue)] shrink-0" />
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <div className="divider my-3" />
+              </div>
+            )}
+
             {/* Destinations list */}
             {apiLoadingState !== 'loading' && apiRoutes.length > 0 && (
               <div className="p-3">
@@ -136,8 +230,24 @@ export function RoutePanel() {
                         key={r.id}
                         onClick={() => setSelectedDestination(r.to)}
                         whileTap={{ scale: 0.98 }}
-                        className="w-full p-3 rounded-xl text-left transition-all hover:bg-[var(--color-fill-tertiary)] group flex items-center justify-between"
+                        className="w-full p-2 rounded-xl text-left transition-all hover:bg-[var(--color-fill-tertiary)] group flex items-center gap-3"
                       >
+                        {/* Station photo thumbnail */}
+                        {destStation.photoUrl ? (
+                          <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0">
+                            <img
+                              src={destStation.photoUrl}
+                              alt={destStation.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-14 h-14 rounded-lg bg-[var(--color-fill-tertiary)] shrink-0 flex items-center justify-center">
+                            <Train className="w-6 h-6 text-[var(--color-text-tertiary)]" />
+                          </div>
+                        )}
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-subhead font-medium text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-accent-blue)]">
@@ -166,7 +276,7 @@ export function RoutePanel() {
                             )}
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-blue)]" />
+                        <ChevronRight className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-blue)] shrink-0" />
                       </motion.button>
                     );
                   })}
@@ -210,24 +320,60 @@ export function RoutePanel() {
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90vw] max-w-md"
         >
           <div className="card-glass overflow-hidden">
-            {/* Journey header */}
-            <div className="p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <p className="text-caption text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">
-                    Journey
+            {/* Destination photo header */}
+            {toStation?.photoUrl && (
+              <div className="relative w-full h-32 overflow-hidden">
+                <img
+                  src={toStation.photoUrl}
+                  alt={toStation.name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-3 left-5 right-5">
+                  <p className="text-caption text-white/70 uppercase tracking-wider mb-0.5">
+                    Destination
                   </p>
-                  <h2 className="text-title-lg text-[var(--color-text-primary)]">
-                    {toStation?.name}
+                  <h2 className="text-title-lg text-white">
+                    {toStation.name}
                   </h2>
                 </div>
                 <button
                   onClick={clearSelection}
-                  className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] text-sm"
+                  className="absolute top-3 right-3 text-white/70 hover:text-white text-sm bg-black/30 px-2 py-1 rounded-lg"
                 >
                   Cancel
                 </button>
+                {toStation.photographer && (
+                  <p className="absolute bottom-1 right-2 text-[10px] text-white/50">
+                    {toStation.photographer}
+                  </p>
+                )}
               </div>
+            )}
+
+            {/* Journey header (no photo fallback) */}
+            {!toStation?.photoUrl && (
+              <div className="p-5 pb-0">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <p className="text-caption text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">
+                      Journey
+                    </p>
+                    <h2 className="text-title-lg text-[var(--color-text-primary)]">
+                      {toStation?.name}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={clearSelection}
+                    className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className={toStation?.photoUrl ? 'p-5' : 'px-5 pb-5'}>
 
               {/* Route info */}
               <div className="flex flex-wrap items-center gap-3 mb-4">

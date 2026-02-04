@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Toaster } from 'react-hot-toast';
 import MapView from './components/MapView';
 import { TimerDisplay } from './components/TimerDisplay';
@@ -13,13 +13,30 @@ import { TrainCabin } from './components/TrainCabin';
 import { PomodoroMapView } from './components/PomodoroMapView';
 import { MapStyleToggle } from './components/MapStyleToggle';
 import { CountrySelector } from './components/CountrySelector';
+import { Confetti } from './components/Confetti';
 import { useStore } from './store/useStore';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 function App() {
   const pomodoroViewMode = useStore((state) => state.pomodoroViewMode);
   const currentStation = useStore((state) => state.currentStation);
   const apiRoutes = useStore((state) => state.apiRoutes);
   const loadConnectedStations = useStore((state) => state.loadConnectedStations);
+  const timerStatus = useStore((state) => state.timer.status);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const prevStatus = useRef(timerStatus);
+
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
+
+  // Trigger confetti when journey completes (entering break)
+  useEffect(() => {
+    if (prevStatus.current === 'running' && timerStatus === 'break') {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+    prevStatus.current = timerStatus;
+  }, [timerStatus]);
 
   // Regenerate routes after page reload if we have a station but no routes
   useEffect(() => {
@@ -29,7 +46,7 @@ function App() {
   }, [currentStation, apiRoutes.length, loadConnectedStations]);
 
   return (
-    <div className="w-full h-screen overflow-hidden" style={{ background: 'var(--color-bg-primary)' }}>
+    <div className="w-full h-screen overflow-hidden grain-overlay" style={{ background: 'var(--color-bg-primary)' }}>
       {/* Google Maps */}
       <MapView />
 
@@ -53,6 +70,9 @@ function App() {
 
       {/* Pomodoro experience - cabin or map view */}
       {pomodoroViewMode === 'cabin' ? <TrainCabin /> : <PomodoroMapView />}
+
+      {/* Confetti celebration on journey completion */}
+      <Confetti isActive={showConfetti} />
 
       {/* Toast notifications - Apple style */}
       <Toaster

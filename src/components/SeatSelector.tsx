@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Train, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Train, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 const ROWS_PER_CAR = 8;
@@ -103,7 +103,7 @@ export function SeatSelector() {
           </div>
 
           {/* Train car layout */}
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+          <div className="rounded-2xl p-6 border" style={{ background: 'var(--color-bg-secondary)', borderColor: 'var(--color-separator)' }}>
             {/* Front of car indicator */}
             <div className="flex justify-center mb-4">
               <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -219,18 +219,24 @@ export function SeatSelector() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center mb-4"
+                className="text-center mb-4 p-4 rounded-xl bg-gradient-to-r from-[var(--color-accent-blue)]/20 to-[var(--color-accent-purple)]/10 border border-[var(--color-accent-blue)]/30"
               >
-                <p className="text-gray-400 text-sm">Your seat</p>
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Sparkles className="w-4 h-4 text-[var(--color-accent-blue)]" />
+                  <p className="text-[var(--color-text-secondary)] text-sm">Your seat</p>
+                </div>
                 <p className="text-white text-2xl font-bold">
                   Car {selectedSeat.car} - Seat {selectedSeat.row}{selectedSeat.seat}
-                  {selectedSeat.isWindow && (
-                    <span className="text-amber-400 text-sm ml-2">(Window)</span>
-                  )}
                 </p>
+                {selectedSeat.isWindow && (
+                  <p className="text-amber-400 text-sm mt-1 flex items-center justify-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    Window Seat
+                  </p>
+                )}
               </motion.div>
             ) : (
-              <p className="text-center text-gray-500 mb-4">
+              <p className="text-center text-[var(--color-text-tertiary)] mb-4">
                 Tap a seat to select it
               </p>
             )}
@@ -240,13 +246,21 @@ export function SeatSelector() {
               disabled={!selectedSeat}
               whileHover={selectedSeat ? { scale: 1.02 } : {}}
               whileTap={selectedSeat ? { scale: 0.98 } : {}}
-              className={`w-full py-4 rounded-xl font-semibold text-lg transition-all ${
+              className={`w-full py-4 rounded-xl font-semibold text-lg transition-all relative overflow-hidden ${
                 selectedSeat
                   ? 'bg-[var(--color-accent-green)] text-white'
-                  : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  : 'bg-[var(--color-fill-tertiary)] text-[var(--color-text-tertiary)] cursor-not-allowed'
               }`}
             >
-              {selectedSeat ? 'Continue to Ticket' : 'Select a Seat'}
+              <span className="relative z-10">{selectedSeat ? 'Continue to Ticket' : 'Select a Seat'}</span>
+              {selectedSeat && (
+                <motion.div
+                  className="absolute inset-0 bg-white/10"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '100%' }}
+                  transition={{ duration: 1, repeat: Infinity, repeatDelay: 2 }}
+                />
+              )}
             </motion.button>
           </div>
         </motion.div>

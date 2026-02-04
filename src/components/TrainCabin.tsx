@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pause, Play, Coffee, Volume2, VolumeX, Map, LogOut } from 'lucide-react';
+import { Pause, Play, Coffee, Volume2, VolumeX, Map, LogOut, Quote } from 'lucide-react';
 import { useStore, useMergedStations } from '../store/useStore';
 import { useTrainAudio } from '../hooks/useTrainAudio';
 import { getBiomeConfig, type BiomeConfig } from '../data/biomes';
+import { getRandomQuote } from '../data/quotes';
 
 function formatTime(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -116,6 +117,7 @@ export function TrainCabin() {
   const { playHorn, startTrainLoop, stopTrainLoop } = useTrainAudio();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const hasPlayedDepartureHorn = useRef(false);
+  const [currentQuote] = useState(() => getRandomQuote());
 
   const fromStation = timer.currentRoute ? stations[timer.currentRoute.from] : null;
   const toStation = timer.currentRoute ? stations[timer.currentRoute.to] : null;
@@ -357,6 +359,29 @@ export function TrainCabin() {
             </div>
           </motion.div>
 
+          {/* Motivational quote during break */}
+          <AnimatePresence>
+            {isBreak && currentQuote && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ delay: 0.5 }}
+                className="absolute top-44 left-1/2 -translate-x-1/2 max-w-md px-4"
+              >
+                <div className="glass-elevated rounded-2xl p-6 text-center">
+                  <Quote className="w-6 h-6 text-[var(--color-accent-orange)] mx-auto mb-3 opacity-50" />
+                  <p className="text-body text-[var(--color-text-primary)] mb-2 italic">
+                    "{currentQuote.text}"
+                  </p>
+                  <p className="text-caption text-[var(--color-text-tertiary)]">
+                    — {currentQuote.author}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Minimal progress bar */}
           <div className="absolute top-32 left-1/2 -translate-x-1/2 w-48">
             <div className="progress-minimal">
@@ -394,37 +419,62 @@ export function TrainCabin() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50"
               >
-                <div
-                  className="px-10 py-6 rounded-3xl text-center"
-                  style={{
-                    background: 'rgba(30, 30, 30, 0.9)',
-                    backdropFilter: 'blur(20px) saturate(180%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                  }}
-                >
-                  <p className="text-sm uppercase tracking-widest text-[var(--color-accent-orange)] font-medium mb-2">
-                    Arriving at
-                  </p>
-                  <p className="text-2xl font-semibold text-white mb-4">
-                    {pauseState.stationName}
-                  </p>
-                  {/* Countdown dots */}
-                  <div className="flex items-center justify-center gap-2">
-                    {Array.from({ length: pauseState.totalPauseSeconds }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-2.5 h-2.5 rounded-full transition-colors duration-200"
-                        style={{
-                          backgroundColor: i < pauseState.totalPauseSeconds - pauseState.remainingPauseSeconds
-                            ? 'var(--color-accent-orange)'
-                            : 'rgba(255, 255, 255, 0.2)',
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
+                {(() => {
+                  const arrivalStation = stations[pauseState.stationId];
+                  return (
+                    <div
+                      className="rounded-3xl text-center overflow-hidden"
+                      style={{
+                        background: 'rgba(30, 30, 30, 0.9)',
+                        backdropFilter: 'blur(20px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        width: arrivalStation?.photoUrl ? '320px' : 'auto',
+                      }}
+                    >
+                      {/* Station photo */}
+                      {arrivalStation?.photoUrl && (
+                        <div className="relative w-full h-40 overflow-hidden">
+                          <img
+                            src={arrivalStation.photoUrl}
+                            alt={pauseState.stationName}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                          {arrivalStation.photographer && (
+                            <p className="absolute bottom-1 right-2 text-[10px] text-white/50">
+                              {arrivalStation.photographer}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className={arrivalStation?.photoUrl ? 'px-10 py-5' : 'px-10 py-6'}>
+                        <p className="text-sm uppercase tracking-widest text-[var(--color-accent-orange)] font-medium mb-2">
+                          Arriving at
+                        </p>
+                        <p className="text-2xl font-semibold text-white mb-4">
+                          {pauseState.stationName}
+                        </p>
+                        {/* Countdown dots */}
+                        <div className="flex items-center justify-center gap-2">
+                          {Array.from({ length: pauseState.totalPauseSeconds }).map((_, i) => (
+                            <div
+                              key={i}
+                              className="w-2.5 h-2.5 rounded-full transition-colors duration-200"
+                              style={{
+                                backgroundColor: i < pauseState.totalPauseSeconds - pauseState.remainingPauseSeconds
+                                  ? 'var(--color-accent-orange)'
+                                  : 'rgba(255, 255, 255, 0.2)',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
           </AnimatePresence>

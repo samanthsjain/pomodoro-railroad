@@ -50,6 +50,8 @@ export interface Station {
   timezone: string;
   funFacts: string[];
   isApiStation?: boolean; // True if loaded from Railway Stations API
+  photoUrl?: string; // URL to station photo from Railway Stations API
+  photographer?: string; // Photo credit
 }
 
 // API loading state
@@ -185,7 +187,128 @@ export interface UserProgress {
   sessionsCompleted: number;
   createdAt: string;
   lastSessionAt: string;
+  // Streak tracking
+  currentStreak: number;
+  longestStreak: number;
+  lastStreakDate: string; // YYYY-MM-DD format
+  // Daily goals
+  dailyGoalMinutes: number;
+  todayMinutes: number;
+  todayDate: string; // YYYY-MM-DD format
+  // Recent journeys for quick-start
+  recentJourneys: RecentJourney[];
+  // Achievements
+  unlockedAchievements: string[];
 }
+
+export interface RecentJourney {
+  fromStation: string;
+  toStation: string;
+  countryCode: string;
+  completedAt: string;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  requirement: (progress: UserProgress) => boolean;
+}
+
+export const achievements: Achievement[] = [
+  {
+    id: 'first-journey',
+    name: 'All Aboard!',
+    description: 'Complete your first journey',
+    icon: '🚂',
+    requirement: (p) => p.sessionsCompleted >= 1,
+  },
+  {
+    id: 'five-journeys',
+    name: 'Regular Commuter',
+    description: 'Complete 5 journeys',
+    icon: '🎫',
+    requirement: (p) => p.sessionsCompleted >= 5,
+  },
+  {
+    id: 'ten-journeys',
+    name: 'Seasoned Traveler',
+    description: 'Complete 10 journeys',
+    icon: '🧳',
+    requirement: (p) => p.sessionsCompleted >= 10,
+  },
+  {
+    id: 'twenty-five-journeys',
+    name: 'Rail Enthusiast',
+    description: 'Complete 25 journeys',
+    icon: '🏆',
+    requirement: (p) => p.sessionsCompleted >= 25,
+  },
+  {
+    id: 'streak-3',
+    name: 'On Track',
+    description: 'Maintain a 3-day streak',
+    icon: '🔥',
+    requirement: (p) => p.longestStreak >= 3,
+  },
+  {
+    id: 'streak-7',
+    name: 'Week Warrior',
+    description: 'Maintain a 7-day streak',
+    icon: '⚡',
+    requirement: (p) => p.longestStreak >= 7,
+  },
+  {
+    id: 'streak-30',
+    name: 'Monthly Master',
+    description: 'Maintain a 30-day streak',
+    icon: '💎',
+    requirement: (p) => p.longestStreak >= 30,
+  },
+  {
+    id: 'distance-100',
+    name: 'Century Rider',
+    description: 'Travel 100km total',
+    icon: '📏',
+    requirement: (p) => p.totalDistanceKm >= 100,
+  },
+  {
+    id: 'distance-1000',
+    name: 'Long Hauler',
+    description: 'Travel 1,000km total',
+    icon: '🌍',
+    requirement: (p) => p.totalDistanceKm >= 1000,
+  },
+  {
+    id: 'countries-3',
+    name: 'Border Hopper',
+    description: 'Visit stations in 3 countries',
+    icon: '🌐',
+    requirement: (p) => p.countriesVisited.length >= 3,
+  },
+  {
+    id: 'countries-5',
+    name: 'Globe Trotter',
+    description: 'Visit stations in 5 countries',
+    icon: '✈️',
+    requirement: (p) => p.countriesVisited.length >= 5,
+  },
+  {
+    id: 'hour-focus',
+    name: 'Deep Focus',
+    description: 'Accumulate 1 hour of focus time',
+    icon: '🧘',
+    requirement: (p) => p.totalTimeMinutes >= 60,
+  },
+  {
+    id: 'ten-hour-focus',
+    name: 'Flow State',
+    description: 'Accumulate 10 hours of focus time',
+    icon: '🌟',
+    requirement: (p) => p.totalTimeMinutes >= 600,
+  },
+];
 
 export interface AppState {
   stations: Record<string, Station>;

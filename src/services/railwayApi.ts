@@ -1,5 +1,6 @@
 import type { Station, Route, RoutePath, RouteSegment } from '../types';
 import { calculateDistance } from '../types';
+import { doesSegmentCrossWater } from './waterDetection';
 
 const API_BASE = 'https://api.railway-stations.org';
 const CACHE_DB_NAME = 'pomodoro-railroad-cache';
@@ -87,6 +88,16 @@ export function getServiceForDistance(distanceKm: number): TrainService {
   }
 }
 
+// Photo data from API
+interface APIPhoto {
+  id: number;
+  path: string;
+  photographer: string;
+  license: string;
+  createdAt: number;
+  outdated?: boolean;
+}
+
 // Raw API response type
 interface APIStation {
   country: string;
@@ -96,6 +107,7 @@ interface APIStation {
   lon: number;
   shortCode?: string;
   inactive?: boolean;
+  photos?: APIPhoto[];
 }
 
 // API response wrapper
@@ -276,7 +288,13 @@ function getTimezone(countryCode: string): string {
   return timezones[countryCode] || 'UTC';
 }
 
-function transformStation(apiStation: APIStation): Station {
+function transformStation(apiStation: APIStation, photoBaseUrl?: string): Station {
+  // Get the first non-outdated photo, or fallback to any photo
+  const photo = apiStation.photos?.find(p => !p.outdated) || apiStation.photos?.[0];
+  const photoUrl = photo && photoBaseUrl
+    ? `${photoBaseUrl}${photo.path}`
+    : undefined;
+
   return {
     id: `api-${apiStation.country}-${apiStation.id}`,
     name: apiStation.title,
@@ -289,6 +307,8 @@ function transformStation(apiStation: APIStation): Station {
     },
     timezone: getTimezone(apiStation.country),
     funFacts: generateFunFacts(apiStation),
+    photoUrl,
+    photographer: photo?.photographer,
   };
 }
 
@@ -310,9 +330,11 @@ export async function fetchCountryStations(countryCode: string): Promise<Station
     }
     const data: APIResponse = await response.json();
     const stations = data.stations || [];
+    const photoBaseUrl = data.photoBaseUrl || 'https://api.railway-stations.org/photos';
+
     const transformedStations = stations
       .filter(s => !s.inactive)
-      .map(transformStation);
+      .map(s => transformStation(s, photoBaseUrl));
 
     // Cache the results
     await setCachedStations(countryCode, transformedStations);
@@ -397,11 +419,8 @@ function getTrainType(distanceKm: number, countryCode: string): string {
 }
 
 // ============================================================================
-// Route Pathfinding - Accurate Station-by-Station Algorithm
+// Route Pathfinding - Maximum Station Hopping Algorithm
 // ============================================================================
-
-// Search radii - start tiny to get ALL stations for accurate path (no water crossings)
-const SEARCH_RADII_KM = [2, 4, 6, 10, 15, 20, 30, 45, 60, 80, 100];
 
 // Cache for computed paths to prevent flickering
 const pathCache = new LRUCache<string[]>(200);
@@ -429,7 +448,7 @@ function bearingDifference(bearing1: number, bearing2: number): number {
   return diff;
 }
 
-// Accurate pathfinding - gets ALL stations along the route for proper path drawing
+// Maximum station hopping - tries to visit as many stations as possible along the route
 function greedyHopPath(
   fromStation: Station,
   toStation: Station,
@@ -439,8 +458,8 @@ function greedyHopPath(
   const visited = new Set<string>([fromStation.id]);
   let current = fromStation;
 
-  // Allow lots of iterations - we want every station
-  const maxIterations = 1000;
+  // Allow lots of iterations - we want maximum station coverage
+  const maxIterations = 2000;
   let iterations = 0;
 
   while (current.id !== toStation.id && iterations < maxIterations) {
@@ -452,7 +471,7 @@ function greedyHopPath(
     );
 
     // If very close to destination, go directly
-    if (distanceToGoal < 2) {
+    if (distanceToGoal < 1) {
       path.push(toStation);
       break;
     }
@@ -465,10 +484,52 @@ function greedyHopPath(
     let bestCandidate: Station | null = null;
     let bestDist = Infinity;
 
-    // Try progressively larger search radii
-    for (const radius of SEARCH_RADII_KM) {
-      const candidates: { station: Station; dist: number }[] = [];
+    // First pass: Find ALL stations that make forward progress
+    // Use very relaxed bearing constraint (90 degrees) to catch more stations
+    const forwardStations: { station: Station; dist: number; distToGoal: number }[] = [];
 
+    for (const station of allStations) {
+      if (visited.has(station.id)) continue;
+      if (station.id === current.id) continue;
+
+      const distFromCurrent = calculateDistance(
+        current.coordinates.lat, current.coordinates.lng,
+        station.coordinates.lat, station.coordinates.lng
+      );
+
+      const stationDistToGoal = calculateDistance(
+        station.coordinates.lat, station.coordinates.lng,
+        toStation.coordinates.lat, toStation.coordinates.lng
+      );
+
+      // Must make forward progress toward goal
+      if (stationDistToGoal >= distanceToGoal) continue;
+
+      const bearing = calculateBearing(
+        current.coordinates.lat, current.coordinates.lng,
+        station.coordinates.lat, station.coordinates.lng
+      );
+
+      // Very relaxed bearing - allow 130 degrees off course to catch more stations
+      const bearingDiff = bearingDifference(bearing, bearingToGoal);
+      if (bearingDiff > 130) continue;
+
+      forwardStations.push({ station, dist: distFromCurrent, distToGoal: stationDistToGoal });
+    }
+
+    // Sort by distance from current position (closest first)
+    forwardStations.sort((a, b) => a.dist - b.dist);
+
+    // Pick the CLOSEST station that makes progress - maximum hopping
+    if (forwardStations.length > 0) {
+      // Always pick the absolute closest station for maximum density
+      bestCandidate = forwardStations[0].station;
+      bestDist = forwardStations[0].dist;
+    }
+
+    // If no forward station found with relaxed bearing, try with any direction
+    // as long as it gets us closer
+    if (!bestCandidate) {
       for (const station of allStations) {
         if (visited.has(station.id)) continue;
         if (station.id === current.id) continue;
@@ -478,38 +539,19 @@ function greedyHopPath(
           station.coordinates.lat, station.coordinates.lng
         );
 
-        // Skip if outside radius - NO minimum distance, get all stations
-        if (distFromCurrent > radius) continue;
-
-        const distToGoal = calculateDistance(
+        const stationDistToGoal = calculateDistance(
           station.coordinates.lat, station.coordinates.lng,
           toStation.coordinates.lat, toStation.coordinates.lng
         );
 
-        // Must make forward progress (at least a tiny bit closer)
-        if (distToGoal >= distanceToGoal) continue;
+        // Must make forward progress
+        if (stationDistToGoal >= distanceToGoal) continue;
 
-        const bearing = calculateBearing(
-          current.coordinates.lat, current.coordinates.lng,
-          station.coordinates.lat, station.coordinates.lng
-        );
-
-        // Must be roughly in the right direction (within 55 degrees)
-        const bearingDiff = bearingDifference(bearing, bearingToGoal);
-        if (bearingDiff > 55) continue;
-
-        candidates.push({ station, dist: distFromCurrent });
-      }
-
-      if (candidates.length > 0) {
-        // Pick the CLOSEST station to get maximum density
-        for (const candidate of candidates) {
-          if (candidate.dist < bestDist) {
-            bestDist = candidate.dist;
-            bestCandidate = candidate.station;
-          }
+        // Pick closest
+        if (distFromCurrent < bestDist) {
+          bestDist = distFromCurrent;
+          bestCandidate = station;
         }
-        break;
       }
     }
 
@@ -518,7 +560,7 @@ function greedyHopPath(
       visited.add(bestCandidate.id);
       current = bestCandidate;
     } else {
-      // No candidate found, go directly to destination
+      // No more intermediate stations, go directly to destination
       path.push(toStation);
       break;
     }
@@ -719,6 +761,7 @@ export function selectCuratedStations(
       );
       const isHighSpeed = distanceKm > 100;
       const travelTime = calculateTravelTime(distanceKm, isHighSpeed);
+
       return { station: s, travelTime, distanceKm: Math.round(distanceKm) };
     })
     .filter(item => item.travelTime >= 5 && item.travelTime <= 180);
@@ -791,7 +834,9 @@ export function createCuratedRoutes(
   // Create station lookup map for significant stops calculation
   const stationMap = new Map(allStations.map(s => [s.id, s]));
 
-  return curatedStations.map(({ station: toStation }) => {
+  const validRoutes: Route[] = [];
+
+  for (const { station: toStation } of curatedStations) {
     // Find full path through ALL intermediate stations (for accurate line drawing)
     const path = findRoutePath(fromStation, toStation, allStations);
 
@@ -800,14 +845,27 @@ export function createCuratedRoutes(
       .map(id => stationMap.get(id))
       .filter((s): s is Station => s !== undefined);
 
-    // Get significant stops (15km+ apart) - these are the ones we show in UI
-    const significantIndices = getSignificantStops(pathStations, 15);
-    const significantStops = significantIndices.length > 2 ? significantIndices.length - 2 : 0;
+    // Validate that the computed path doesn't cross water
+    let routeCrossesWater = false;
+    for (let i = 0; i < pathStations.length - 1; i++) {
+      if (doesSegmentCrossWater(pathStations[i].coordinates, pathStations[i + 1].coordinates)) {
+        routeCrossesWater = true;
+        break;
+      }
+    }
+
+    // Skip routes that would cross water
+    if (routeCrossesWater) {
+      continue;
+    }
+
+    // Count ALL intermediate stops (excluding start and end)
+    const totalStops = pathStations.length > 2 ? pathStations.length - 2 : 0;
 
     // Get appropriate train service type based on distance
     const service = getServiceForDistance(path.totalDistanceKm);
 
-    return {
+    validRoutes.push({
       id: `route-${fromStation.id}-${toStation.id}`,
       from: fromStation.id,
       to: toStation.id,
@@ -816,7 +874,7 @@ export function createCuratedRoutes(
       trainType: service.name,
       routeName: `${fromStation.city} - ${toStation.city}`,
       path, // Full path with ALL stations for accurate line drawing
-      stops: significantStops, // Only significant stops shown in UI
+      stops: totalStops, // Actual number of intermediate stops
       service: {
         id: service.id,
         name: service.name,
@@ -824,8 +882,10 @@ export function createCuratedRoutes(
         color: service.color,
         type: service.type,
       },
-    };
-  });
+    });
+  }
+
+  return validRoutes;
 }
 
 // ============================================================================

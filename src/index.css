@@ -435,3 +435,125 @@ button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.4);
 }
+
+/* Subtle grain texture overlay */
+.grain-overlay::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Ambient glow effect */
+.ambient-glow {
+  position: relative;
+}
+
+.ambient-glow::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 122, 255, 0.15) 0%,
+    rgba(52, 199, 89, 0.1) 50%,
+    rgba(175, 82, 222, 0.15) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  filter: blur(20px);
+}
+
+.ambient-glow:hover::after {
+  opacity: 1;
+}
+
+/* Keyboard shortcut pill */
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-fill-tertiary);
+  border: 1px solid var(--color-separator);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--color-text-secondary);
+}
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-fill-tertiary) 0%,
+    var(--color-fill-secondary) 50%,
+    var(--color-fill-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Pulse ring animation */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Success state styling */
+.success-glow {
+  box-shadow: 0 0 20px rgba(52, 199, 89, 0.4);
+}
+
+/* Warning state styling */
+.warning-glow {
+  box-shadow: 0 0 20px rgba(255, 149, 0, 0.4);
+}
+
+/* Interactive hover lift */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}

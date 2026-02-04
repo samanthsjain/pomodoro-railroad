@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { useMemo } from 'react';
-import type { TimerState, UserProgress, Journey, JourneySegment, PauseState, TrainClass, MapStyle, Station, Route, ApiLoadingState, SelectedSeat } from '../types';
+import type { TimerState, UserProgress, Journey, JourneySegment, PauseState, TrainClass, MapStyle, Station, Route, ApiLoadingState, SelectedSeat, RecentJourney } from '../types';
+import { achievements } from '../types';
 import { trainClasses, calculateDistance } from '../types';
 import { findRoute as findLocalRoute } from '../data/stations';
 import { fetchCountryStations, getRandomStation, selectCuratedStations, createCuratedRoutes, clearCaches, getSignificantStopIds } from '../services/railwayApi';
@@ -87,6 +88,8 @@ interface AppStore {
   findRoute: (fromId: string, toId: string) => Route | undefined;
 }
 
+const getTodayDate = () => new Date().toISOString().split('T')[0];
+
 const initialProgress: UserProgress = {
   visitedStations: [],
   completedRoutes: [],
@@ -96,6 +99,18 @@ const initialProgress: UserProgress = {
   sessionsCompleted: 0,
   createdAt: new Date().toISOString(),
   lastSessionAt: new Date().toISOString(),
+  // Streak tracking
+  currentStreak: 0,
+  longestStreak: 0,
+  lastStreakDate: '',
+  // Daily goals
+  dailyGoalMinutes: 25,
+  todayMinutes: 0,
+  todayDate: getTodayDate(),
+  // Recent journeys
+  recentJourneys: [],
+  // Achievements
+  unlockedAchievements: [],
 };
 
 const initialTimer: TimerState = {
@@ -564,6 +579,72 @@ export const useStore = create<AppStore>()(
 
               const { selectedCountry } = get();
 
+              // Update streak tracking
+              const today = getTodayDate();
+              const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+              let newStreak = progress.currentStreak;
+              let newLongestStreak = progress.longestStreak;
+              let newTodayMinutes = progress.todayMinutes;
+              let newTodayDate = progress.todayDate;
+
+              // Reset daily minutes if it's a new day
+              if (newTodayDate !== today) {
+                newTodayMinutes = 0;
+                newTodayDate = today;
+              }
+              newTodayMinutes += journey.totalTimeMinutes;
+
+              // Update streak
+              if (progress.lastStreakDate === yesterday) {
+                newStreak = progress.currentStreak + 1;
+              } else if (progress.lastStreakDate !== today) {
+                newStreak = 1;
+              }
+              newLongestStreak = Math.max(newLongestStreak, newStreak);
+
+              // Add to recent journeys
+              const newRecentJourney: RecentJourney = {
+                fromStation: route.from,
+                toStation: route.to,
+                countryCode: selectedCountry || '',
+                completedAt: new Date().toISOString(),
+              };
+              const newRecentJourneys = [
+                newRecentJourney,
+                ...(progress.recentJourneys || []).slice(0, 4)
+              ];
+
+              // Check for new achievements
+              const updatedProgress = {
+                ...progress,
+                visitedStations: newVisitedStations,
+                completedRoutes: newCompletedRoutes,
+                totalDistanceKm: progress.totalDistanceKm + journey.totalDistanceKm,
+                totalTimeMinutes: progress.totalTimeMinutes + journey.totalTimeMinutes,
+                countriesVisited: newCountries,
+                sessionsCompleted: progress.sessionsCompleted + 1,
+                lastSessionAt: new Date().toISOString(),
+                currentStreak: newStreak,
+                longestStreak: newLongestStreak,
+                lastStreakDate: today,
+                dailyGoalMinutes: progress.dailyGoalMinutes || 25,
+                todayMinutes: newTodayMinutes,
+                todayDate: newTodayDate,
+                recentJourneys: newRecentJourneys,
+                unlockedAchievements: progress.unlockedAchievements || [],
+              };
+
+              // Check for newly unlocked achievements
+              const newlyUnlocked = achievements
+                .filter(a => !updatedProgress.unlockedAchievements.includes(a.id))
+                .filter(a => a.requirement(updatedProgress))
+                .map(a => a.id);
+
+              updatedProgress.unlockedAchievements = [
+                ...updatedProgress.unlockedAchievements,
+                ...newlyUnlocked,
+              ];
+
               set({
                 timer: {
                   ...timer,
@@ -578,16 +659,7 @@ export const useStore = create<AppStore>()(
                     pauseState: null,
                   },
                 },
-                progress: {
-                  ...progress,
-                  visitedStations: newVisitedStations,
-                  completedRoutes: newCompletedRoutes,
-                  totalDistanceKm: progress.totalDistanceKm + journey.totalDistanceKm,
-                  totalTimeMinutes: progress.totalTimeMinutes + journey.totalTimeMinutes,
-                  countriesVisited: newCountries,
-                  sessionsCompleted: progress.sessionsCompleted + 1,
-                  lastSessionAt: new Date().toISOString(),
-                },
+                progress: updatedProgress,
                 ...(selectedCountry ? {
                   currentStation: route.to,
                   selectedDeparture: route.to,
